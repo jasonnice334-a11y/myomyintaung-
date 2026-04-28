@@ -14,7 +14,7 @@ import io
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ===============================
-# COLOR SETTINGS
+# COLOR SETTINGS (FIXED)
 # ===============================
 red = "\033[0;31m"
 bred = "\033[1;31m"
@@ -27,6 +27,8 @@ bpurple = "\033[1;35m"
 cyan = "\033[0;36m"
 bcyan = "\033[1;36m"
 white = "\033[0;37m"
+blue = "\033[0;34m"
+bblue = "\033[1;34m"
 reset = "\033[00m"
 
 # ===============================
@@ -44,13 +46,13 @@ def get_system_key():
             if not out or out == "unknown":
                 out = subprocess.check_output(["getprop", "ro.build.id"]).decode().strip()
         else:
-            out = "DEVICE-7788"
+            out = "DEVICE-ID-7788"
         
-        # 6-character short key without "Jason"
+        # 6-character short key
         short_id = hashlib.md5(out.encode()).hexdigest().upper()[:6]
         return f"{short_id}"
     except:
-        return "VIP778"
+        return "VIP99X"
 
 def banner():
     os.system('clear')
@@ -74,6 +76,7 @@ def check_approval():
             f = io.StringIO(response.text)
             reader = csv.reader(f)
             for row in reader:
+                # Read Column A (Key) and Column B (Expiry)
                 if len(row) >= 2:
                     sheet_key = row[0].strip()
                     sheet_expiry = row[1].strip()
@@ -107,26 +110,12 @@ def check_approval():
     print(f"║       🛑 KEY NOT APPROVED 🛑         ║")
     print(f"╚══════════════════════════════════════╝{reset}")
     print(f"{yellow}[!] YOUR KEY: {system_key}{reset}")
-    print(f"{white}[*] Send this key to Admin for activation.{reset}")
+    print(f"{white}[*] Please contact Admin for activation.{reset}")
     return False
 
 def start_process():
     print(f"\n{bgreen}»» Engine initialization complete...{reset}")
     while True:
         try:
-            print(f"{cyan}⚡ Optimizing Data Stream...{reset}", end="\r")
-            time.sleep(1)
-            print(f"{bblue}⚡ Stabilizing Ping...       {reset}", end="\r")
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
-
-if __name__ == "__main__":
-    if check_approval():
-        try:
-            start_process()
-        except KeyboardInterrupt:
-            print(f"\n{red}✖ Operation Terminated.{reset}")
-    else:
-        sys.exit(1)
-        
+            print(
+                
