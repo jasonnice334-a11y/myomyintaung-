@@ -14,7 +14,7 @@ import io
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ===============================
-# COLOR SETTINGS (FIXED)
+# COLOR SETTINGS
 # ===============================
 red = "\033[0;31m"
 bred = "\033[1;31m"
@@ -46,13 +46,12 @@ def get_system_key():
             if not out or out == "unknown":
                 out = subprocess.check_output(["getprop", "ro.build.id"]).decode().strip()
         else:
-            out = "DEVICE-ID-7788"
+            out = "DEV-ID-77"
         
-        # 6-character short key
         short_id = hashlib.md5(out.encode()).hexdigest().upper()[:6]
         return f"{short_id}"
     except:
-        return "VIP99X"
+        return "VIP-X7"
 
 def banner():
     os.system('clear')
@@ -76,7 +75,6 @@ def check_approval():
             f = io.StringIO(response.text)
             reader = csv.reader(f)
             for row in reader:
-                # Read Column A (Key) and Column B (Expiry)
                 if len(row) >= 2:
                     sheet_key = row[0].strip()
                     sheet_expiry = row[1].strip()
@@ -103,7 +101,6 @@ def check_approval():
                         except ValueError:
                             continue
     except:
-        print(f"{red}✖ Connection Error!{reset}")
         return False
 
     print(f"\n{bred}✖══════════════════════════════════════✖")
@@ -117,5 +114,21 @@ def start_process():
     print(f"\n{bgreen}»» Engine initialization complete...{reset}")
     while True:
         try:
-            print(
-                
+            sys.stdout.write(f"\r{cyan}⚡ Optimizing Data Stream...{reset}")
+            sys.stdout.flush()
+            time.sleep(1)
+            sys.stdout.write(f"\r{bblue}⚡ Stabilizing Ping...       {reset}")
+            sys.stdout.flush()
+            time.sleep(1)
+        except KeyboardInterrupt:
+            break
+
+if __name__ == "__main__":
+    if check_approval():
+        try:
+            start_process()
+        except KeyboardInterrupt:
+            print(f"\n{red}✖ Operation Terminated.{reset}")
+    else:
+        sys.exit(1)
+        
