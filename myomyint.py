@@ -7,6 +7,9 @@ import time
 import os
 import sys
 import datetime
+import hashlib
+import csv
+import io
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -40,35 +43,40 @@ def get_system_key():
             out = subprocess.check_output(["getprop", "ro.serialno"]).decode().strip()
             if not out or out == "unknown":
                 out = subprocess.check_output(["getprop", "ro.build.id"]).decode().strip()
-            return f"JASON-{out}"
-        return "JASON-UNKNOWN-DEVICE"
+        else:
+            out = "DEVICE-7788"
+        
+        # 6-character short key without "Jason"
+        short_id = hashlib.md5(out.encode()).hexdigest().upper()[:6]
+        return f"{short_id}"
     except:
-        return "JASON-MANUAL-KEY-7788"
+        return "VIP778"
 
 def banner():
     os.system('clear')
-    print(f"""{bpurple}
-┌──────────────────────────────────────┐
-│        PREMIUM NETWORK ENGINE        │
-│          BY JASON NICE 334           │
-│         {bgreen}STATUS: ACTIVE ✓{bpurple}             │
-└──────────────────────────────────────┘
-{reset}""")
+    print(f"""{bcyan}
+╔══════════════════════════════════════════╗
+║   {bpurple}⚡ PREMIUM NETWORK TURBO ENGINE ⚡{bcyan}     ║
+╠══════════════════════════════════════════╣
+║   {white}DEVELOPED BY  : JASON NICE 334{bcyan}         ║
+║   {white}VERSION       : 2.5 (STABLE){bcyan}           ║
+║   {white}STATUS        : {bgreen}ACTIVE ✓{bcyan}               ║
+╚══════════════════════════════════════════╝{reset}""")
 
 def check_approval():
     banner()
-    print(f"\n{bcyan}[!] Authenticating system access...{reset}")
+    print(f"\n{bpurple}»» {white}Authenticating System Access...{reset}")
     
     system_key = get_system_key()
     try:
         response = requests.get(SHEET_CSV_URL, timeout=10)
         if response.status_code == 200:
-            lines = response.text.strip().split('\n')
-            for line in lines:
-                parts = line.split(',')
-                if len(parts) >= 2:
-                    sheet_key = parts[0].strip().strip('"')
-                    sheet_expiry = parts[1].strip().strip('"')
+            f = io.StringIO(response.text)
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) >= 2:
+                    sheet_key = row[0].strip()
+                    sheet_expiry = row[1].strip()
                     
                     if system_key == sheet_key:
                         try:
@@ -77,44 +85,39 @@ def check_approval():
                             remaining_days = (expiry_date - today).days
                             
                             if remaining_days < 0:
-                                print(f"\n{bred}╔══════════════════════════════════════════════╗")
-                                print(f"║          ❌ ACCESS EXPIRED ❌                ║")
-                                print(f"╠══════════════════════════════════════════════╣")
-                                print(f"║ Status: License ended on {expiry_date}       ║")
-                                print(f"║ Contact: @jason4565999                       ║")
-                                print(f"╚══════════════════════════════════════════════╝{reset}")
+                                print(f"\n{bred}✖ ACCESS EXPIRED ON {expiry_date} ✖{reset}")
                                 return False
                             
-                            print(f"{white}[*] System Key : {system_key}{reset}")
-                            print(f"{white}[*] Expiry Date: {expiry_date}{reset}")
+                            print(f"{white}ID  : {bcyan}{system_key}{reset}")
                             day_color = bgreen if remaining_days > 7 else byellow
-                            print(f"{white}[*] Time Left  : {day_color}{remaining_days} Days Remaining{reset}")
+                            print(f"{white}LEFT: {day_color}{remaining_days} Days Remaining{reset}")
                             
-                            print(f"\n{bgreen}╔══════════════════════════════════════╗")
-                            print(f"║        ✅ ACCESS APPROVED ✅         ║")
-                            print(f"║          JASON VIP VERSION           ║")
+                            print(f"\n{bgreen}⚡══════════════════════════════════════⚡")
+                            print(f"║       💎 ACCESS GRANTED 💎           ║")
                             print(f"╚══════════════════════════════════════╝{reset}")
                             time.sleep(1.5)
                             return True
                         except ValueError:
                             continue
     except:
-        print(f"{red}[!] Connection Error. Please check internet.{reset}")
+        print(f"{red}✖ Connection Error!{reset}")
         return False
 
-    print(f"\n{bred}╔══════════════════════════════════════╗")
-    print(f"║        ❌ KEY NOT APPROVED ❌        ║")
+    print(f"\n{bred}✖══════════════════════════════════════✖")
+    print(f"║       🛑 KEY NOT APPROVED 🛑         ║")
     print(f"╚══════════════════════════════════════╝{reset}")
-    print(f"{yellow}[!] Your Key: {system_key}{reset}")
-    print(f"{white}[*] Contact @jason4565999 for access{reset}")
+    print(f"{yellow}[!] YOUR KEY: {system_key}{reset}")
+    print(f"{white}[*] Send this key to Admin for activation.{reset}")
     return False
 
 def start_process():
-    print(f"\n{bgreen}[+] Engine started successfully...{reset}")
+    print(f"\n{bgreen}»» Engine initialization complete...{reset}")
     while True:
         try:
-            print(f"{cyan}[*] Optimizing network stability...{reset}", end="\r")
-            time.sleep(2)
+            print(f"{cyan}⚡ Optimizing Data Stream...{reset}", end="\r")
+            time.sleep(1)
+            print(f"{bblue}⚡ Stabilizing Ping...       {reset}", end="\r")
+            time.sleep(1)
         except KeyboardInterrupt:
             break
 
@@ -123,7 +126,7 @@ if __name__ == "__main__":
         try:
             start_process()
         except KeyboardInterrupt:
-            print(f"\n{red}[!] Stopped by user.{reset}")
+            print(f"\n{red}✖ Operation Terminated.{reset}")
     else:
         sys.exit(1)
         
